@@ -1,0 +1,120 @@
+const _ = require('lodash')
+
+const DEFAULT_TIMEOUT = 10000  // ms
+
+module.exports = (app, plugin) => {
+
+  // discrete status fields are not yet implemented
+  const engParKeys = [
+      'inverterMotorIdentifier',
+      'operatingMode',
+      'reserved',
+      'motorTemperature',
+      'inverterTemperature',
+      'coolantTemperature',
+      'gearTemperature',
+      'shaftTorque'
+  ]
+
+  return [{
+    title: 'Temperature, exhaust (130312)',
+    optionKey: 'EXHAUST_TEMPERATURE',
+    context: 'vessels.self',
+    properties: {
+      engines: {
+        title: 'Engine Mapping',
+        type: 'array',
+        items: {
+          type: 'object',
+          properties: {
+            signalkId: {
+              title: 'Signal K engine id',
+              type: 'string'
+            },
+            tempInstanceId: {
+              title: 'NMEA2000 Temperature Instance Id',
+              type: 'number'
+            }
+          }
+        }
+      }
+    }
+  },
+  {
+    title: 'Engine Parameters (127490)',
+    optionKey: 'ENGINE_PARAMETERS',
+    context: 'vessels.self',
+    properties: {
+      engines: {
+        title: 'Engine Mapping',
+        type: 'array',
+        items: {
+          type: 'object',
+          properties: {
+            signalkId: {
+              title: 'Signal K engine id',
+              type: 'string'
+            },
+            instanceId: {
+              title: 'NMEA2000 Engine Instance Id',
+              type: 'number'
+            }
+          }
+        }
+      }
+    },
+
+    testOptions: {
+      ENGINE_PARAMETERS: {
+        engines: [{
+          signalkId: 0,
+          instanceId: 1
+        }]
+      }
+    },
+    
+    conversions: (options) => {
+      if ( !_.get(options, 'ENGINE_PARAMETERS.engines') ) {
+        return null
+      }
+      const dyn = options.ENGINE_PARAMETERS.engines.map(engine => {
+        return {
+          keys: engParKeys.map(key => `propulsion.${engine.signalkId}.${key}`),
+          timeouts: engParKeys.map(key => DEFAULT_TIMEOUT),
+          callback: (ident, mode, reserved, motorTemp, invertTemp, coolTemp, gearTemp, shaftTorque) => {
+            return [{
+                pgn: 127490,
+                "Engine Instance": engine.instanceId,
+                "Instance": engine.instanceId,
+                "Inverter/Motor Identifier": "test",
+                "Operating Mode": 1,
+                "Reserved": 2,
+                "Motor Temperature": 20,
+                "Inverter Temperature": 30,
+                "Coolant Temperature": 40,
+                "Gear Temperature": 50,
+                "Shaft Torque": 100
+          },
+          tests: [{
+            input: [ "test", 1, 2, 20, 30, 40, 50, 100 ],
+            expected: [{
+              "prio": 2,
+              "pgn": 127490,
+              "dst": 255,
+              "fields": {
+                "Instance": "Dual Engine Starboard",
+                "Inverter/Motor Identifier": "test",
+                "Operating Mode": 1,
+                "Reserved": 2,
+                "Motor Temperature": 20,
+                "Inverter Temperature": 30,
+                "Coolant Temperature": 40,
+                "Gear Temperature": 50,
+                "Shaft Torque": 100
+              }
+            }]
+          }]
+        }
+      })
+  }]
+}
